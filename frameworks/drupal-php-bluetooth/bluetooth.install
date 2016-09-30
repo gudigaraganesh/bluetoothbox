@@ -1,0 +1,80 @@
+<?php
+
+/**
+ * Implementation of hook_install().
+ */
+function bluetooth_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysql':
+    case 'mysqli':
+      $result = db_query("
+        CREATE TABLE {bluetooth} (
+          hostid int NOT NULL,
+	  deviceid int NOT NULL,
+	  uuid   int NOT NULL,
+          mac varchar(18) NOT NULL,
+          name varchar(64) NOT NULL,
+	  devicename varchar(150) NOT NULL,
+	  proto int NOT NULL,
+          mode smallint NOT NULL DEFAULT 0,
+          adkey int NOT NULL DEFAULT 0,
+          PRIMARY KEY (hostid),
+          UNIQUE KEY deviceid (deviceid)
+        ) /*!40100 DEFAULT CHARACTER SET utf8 */
+      ");
+      $result = db_query("
+        CREATE TABLE {device_ad} (
+          adkey int NOT NULL,
+          adtype varchar(20) NOT NULL,
+          admsg varchar(200) NOT NULL,
+          PRIMARY KEY (adkey)
+	  UNIQUE  KEY admsg (admsg)
+        ) /*!40100 DEFAULT CHARACTER SET utf8 */
+      ");
+      break;
+    case 'pgsql':
+      $result = db_query("
+        CREATE TABLE {bluetooth} (
+          hostid int NOT NULL,
+	  deviceid int NOT NULL,
+	  uuid   int NOT NULL,
+          mac varchar(18) NOT NULL,
+          name varchar(64) NOT NULL,
+	  devicename varchar(150) NOT NULL,
+	  proto int NOT NULL,
+          mode smallint NOT NULL DEFAULT 0,
+          adkey int NOT NULL DEFAULT 0,
+          active int NOT NULL DEFAULT 0,
+          PRIMARY KEY (hostid),
+          UNIQUE  deviceid (deviceid)
+        ) /*!40100 DEFAULT CHARACTER SET utf8 */
+      ");
+      $result = db_query("
+        CREATE TABLE {device_ad} (
+          adkey int NOT NULL,
+          adtype varchar(20) NOT NULL,
+          admsg varchar(200) NOT NULL,
+          PRIMARY KEY (adkey)
+          UNIQUE  admsg (admsg)
+        ) /*!40100 DEFAULT CHARACTER SET utf8 */
+      ");
+
+
+      break;
+  }
+	if ($result) {
+		drupal_set_message(t('Bluetooth module installed its tables successfully.'));
+	} else {
+		drupal_set_message(t('The installation of Bluetooth module was unsuccessful.'), 'error');
+	}
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function bluetooth_uninstall() {
+  db_query('DROP TABLE {bluetooth}');
+  db_query('DROP TABLE {device_ad}');
+
+	drupal_set_message(t('Bluetooth module uninstalled successfully.'), 'warning');
+}

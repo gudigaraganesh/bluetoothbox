@@ -1,0 +1,481 @@
+<?php
+
+include("nu_func.php");
+
+define('AD_TYPE_TEXT', 0);
+define('BT_MULTICLIENT', 0);
+define('BTPROTO_OBEX', 0);
+/**
+ * Implementation of hook_help()
+ */
+function bluetooth_help($section) {
+	switch ($section) {
+		case 'admin/help#bluetooth':
+			return t('This module helps you to configure Bluetooth devices in Host. Visit settings page to configure which Bluetooth module.');
+	}
+}
+
+/**
+ * Implamentation of hook_menu()
+ */
+function bluetooth_menu($may_cache) {
+	$items = array();
+
+	if ($may_cache) {
+		$items[] = array(
+      'path' => 'admin/settings/bluetooth',
+			'title' => t('Bluetooth'),
+      'description' => t('Configure the Bluetooth Hosts.'),
+      'callback' => 'bluetooth_callback_bdevs',
+			'type' => MENU_NORMAL_ITEM
+		);
+		$items[] = array(
+      'path' => 'admin/settings/bluetooth/list',
+			'title' => t('Show Bluetooth Devices'),
+			'type' => MENU_DEFAULT_LOCAL_TASK,
+			'weight' => 0
+		);
+		$items[] = array(
+      'path' => 'admin/settings/bluetooth/add',
+			'title' => t('Add Advertisment'),
+      'callback' => 'drupal_get_form',
+      'callback arguments' => array('bluetooth_callback_add'),
+			'type' => MENU_LOCAL_TASK,
+			'weight' => 1
+		);
+		$items[] = array(
+      'path' => 'admin/settings/bluetooth/test',
+			'title' => t('Send And Verify'),
+      'callback' => 'drupal_get_form',
+      'callback arguments' => array('bluetooth_callback_send'),
+			'type' => MENU_LOCAL_TASK,
+			'weight' => 2
+		);
+		$items[] = array(
+      'path' => 'admin/settings/bluetooth/delete',
+      'callback' => 'bluetooth_callback_delete',
+			'type' => MENU_CALLBACK
+		);
+		$items[] = array(
+      'path' => 'admin/settings/bluetooth/edit',
+      'callback' => 'drupal_get_form',
+      'callback arguments' => array('bluetooth_callback_edit'),
+			'type' => MENU_CALLBACK
+		);
+	}
+
+	return $items;
+}
+
+/**
+ * Display a list of sms email gateways.
+ */
+function bluetooth_callback_bdevs( ) {
+  $rows = $links = array();
+
+  $items = bluetooth_active_hostdevs();
+
+	print "TEST";
+  $links['edit'] = array(
+    'title' => t('edit')
+  );
+  $links['delete'] = array(
+    'title' => t('delete')
+  );
+
+  if ($items) {
+    foreach ($items as $hostid => $item) {
+      $links['edit']['href'] = 'admin/settings/bluetooth/edit/'. $seid;
+      $links['delete']['href'] = 'admin/settings/bluetooth/delete/'. $seid;
+
+      $rows[] = array(
+        array('data' => $item->name),
+        array('data' => $item->mac),
+        array('data' => $item->devicename),
+        array('data' => $item->uuid),
+        array('data' => bluetooth_array_mode($item->mode)),
+        array('data' => bluetooth_array_proto($item->proto)),
+        array('data' => bluetooth_array_adkey($item->adkey)),
+        array('data' => bluetooth_array_active($item->proto)),
+        array('data' => theme('links', $links, array('class' => 'links inline')))
+	
+      );
+    }
+  }
+  else {
+    $rows[] = array(
+      array('data' => t('There are no hostdevices found.'), 'colspan' => 3)
+    );
+  }
+  //return theme('table', array(t('Bluetooth Device Name'),t('Device MAC'), t('Device Identfier'),t('Host PIN'),t('Recieve mode'),t('Protocol'),t('Ads Type'),t('Active'),t('Actions')), $rows);
+  return theme('table', array(t('Bluetooth Device Name')),$raws);
+}
+
+
+/**
+ * Add Advertisement form.
+ */
+function bluetooth_callback_add() {
+  $form = array();
+
+  $form['bluetooth_admsg'] = array(
+  	'#type' => 'textfield',
+  	'#title' => t('Type Content Info'),
+  	'#description' => t('Specify the Image file name for Image based ads of xml file name for xml based ads or paste a text/html/xml content.',
+  	  array('%ex' => 'hello world')),
+  	'#maxlength' => 250,
+  	'#required' => TRUE,
+  );
+  $form['bluetooth_adtype'] = array(
+  	'#type' => 'textfield',
+  	'#title' => t('Type Key Name'),
+  	'#description' => t('Enter the key name for this adtype.', array('%ex' => 'MSG1')),
+  	'#maxlength' => 64,
+  	'#required' => TRUE,
+  );
+  $form['submit'] = array(
+  	'#type' => 'submit',
+  	'#value' => t('Add Advertisment'),
+  );
+
+  return $form;
+}
+
+/**
+ * Add advertisment edit form.
+ */
+function bluetooth_callback_edit() {
+  $adkey = arg(4);
+
+  if (is_numeric($adkey)) {
+    $item = bluetooth_get_ads($seid);
+    $form = bluetooth_callback_add();
+
+    $form['bluetooth_seid'] = array(
+  	  '#type' => 'hidden',
+  	  '#value' => $adkey
+    );
+
+    $form['bluetooth_admsg']['#default_value'] = $item->admsg;
+    $form['bluetooth_adtype']['#default_value'] = $item->adtype;
+    $form['submit']['#value'] = t('Save Advertisment');
+    return $form;
+  }
+}
+
+/**
+ * Testing form.
+ */
+function bluetooth_callback_send() {
+  $form['bluetooth_msg'] = array(
+  	'#type' => 'textfield',
+  	'#title' => t('Type your Message'),
+  	'#description' => t('Type your short and sweet message here.',
+  	  array('%plus' => '"+"')),
+  	'#maxlength' => 150,
+  	'#required' => TRUE,
+  );
+  $form['bluetooth_MAC'] = array(
+  	'#type' => 'textfield',
+  	'#title' => t('MAC'),
+  	'#description' => t('Specify the mobile number to send a test SMS message to. Several operators may require to include %plus sign.',
+  	  array('%plus' => '"+"')),
+  	'#maxlength' => 18,
+  	'#required' => TRUE,
+  );
+  $form['submit'] = array(
+  	'#type' => 'submit',
+  	'#value' => t('Send Message'),
+  );
+
+  return $form;
+}
+
+/**
+ * Builds an associated array for mode choices.
+ */
+function bluetooth_array_mode($choice = NULL) {
+  static $modes;
+  if (empty($modes)) {
+    $modes = array(
+  	  0 => t('Single Client'),
+  	  1 => t('Multi Client'),
+  	  2 => t('Scanning')
+  	);
+  }
+  return ($choice === NULL) ? $modes : $modes[$choice];
+}
+
+function bluetooth_array_proto($choice = NULL) {
+  static $modes;
+  if (empty($modes)) {
+    $modes = array(
+  	  0 => t('RFCOMM OBEX'),
+  	  1 => t('L2CAP'),
+  	  2 => t('RFCOMM SPP')
+  	);
+  }
+  return ($choice === NULL) ? $modes : $modes[$choice];
+}
+
+function bluetooth_array_adkey($choice = NULL) {
+  static $modes;
+  if (empty($modes)) {
+    $modes = array(
+  	  0 => t('MSG1'),
+  	  2 => t('MSG2')
+  	);
+  }
+  return ($choice === NULL) ? $modes : $modes[$choice];
+}
+
+function bluetooth_array_active($choice = NULL) {
+  static $modes;
+  if (empty($modes)) {
+    $modes = array(
+  	  0 => t('not up'),
+  	  2 => t('UP and active')
+  	);
+  }
+  return ($choice === NULL) ? $modes : $modes[$choice];
+}
+
+/**
+ * Builds an associated array for characters which must be removed from a mobile number.
+ */
+function bluetooth_array_chars() {
+  static $chars;
+  if (empty($chars)) {
+    $chars = array('+', '-', '=', ' ', '/', '\\', '_');
+  }
+  return $chars;
+}
+
+/**
+ * Helper function to validate mobile number prefix.
+ */
+function _bluetooth_validate_prefix($prefix) {
+  return is_numeric($prefix);
+}
+
+/**
+ * Validate add form.
+ */
+function bluetooth_callback_add_validate($form_id, $form_values) {
+  if (!_bluetooth_validate_prefix($form_values['bluetooth_admsg'])) {
+	  form_set_error('bluetooth_admsg', t('Mobile number prefix must contain only digits!'));
+  }
+  if ($i = bluetooth_get_gateway($form_values['bluetooth_admsg'], 'prefix')) {
+	  form_set_error('bluetooth_admsg', t('A gateway for mobile prefix %prefix already exists!', array('%prefix' => $form_values['bluetooth_admsg'])));
+  }
+}
+
+/**
+ * Validate edit form.
+ */
+function bluetooth_callback_edit_validate($form_id, $form_values) {
+  if (!_bluetooth_validate_prefix($form_values['bluetooth_admsg'])) {
+	  form_set_error('bluetooth_admsg', t('Mobile number prefix must contain only digits!'));
+  }
+  if ($i = bluetooth_get_gateway($form_values['bluetooth_admsg'], 'prefix', $form_values['bluetooth_seid'])) {
+	  form_set_error('bluetooth_admsg', t('A gateway for mobile prefix %prefix already exists!', array('%prefix' => $form_values['bluetooth_admsg'])));
+  }
+}
+
+/**
+ * Submit add form.
+ */
+function bluetooth_callback_add_submit($form_id, $form_values) {
+  $gateway = new stdClass();
+  $gateway->prefix = str_replace(bluetooth_array_chars(), '', $form_values['bluetooth_admsg']);
+  $gateway->gateway = $form_values['bluetooth_adtype'];
+  $gateway->mode = $form_values['bluetooth_mode'];
+
+  $res = bluetooth_save($gateway);
+  if ($res) {
+    drupal_set_message(t('An email gateway %gateway for prefix %prefix has been successfully added.',
+      array('%gateway' => $gateway->gateway, '%prefix' => $gateway->prefix))
+    );
+  }
+  return 'admin/settings/bluetooth';
+}
+
+/**
+ * Submit edit form.
+ */
+function bluetooth_callback_edit_submit($form_id, $form_values) {
+  $ad = new stdClass();
+  $ad->adkey = $form_values['bluetooth_adid'];
+  $ad->admsg = str_replace(bluetooth_array_chars(), '', $form_values['bluetooth_admsg']);
+  $ad->adtype = $form_values['bluetooth_adtype'];
+//$res = bluetooth_save($gateway);
+  //if ($res) {
+  //	drupal_set_message(t('E-mail gateway for mobile prefix %prefix has been successfully saved.',
+    //  array('%prefix' => $gateway->prefix))
+    //);
+  //}
+  return 'admin/settings/bluetooth';
+}
+
+/**
+ * Submit testing form.
+ */
+function bluetooth_callback_test_submit($form_id, $form_values) {
+  $res = bluetooth_send($form_values['bluetooth_number'], t("Nirmitsu - %to.",array('%to' => $form_values['bluetooth_msg'])), TRUE);
+  if ($res !== FALSE) {
+    drupal_set_message(t('A  SMS message has been successfully sent via email gateway to %to.',array('%to' => $form_values['bluetooth_number'])));
+  }
+}
+
+/**
+ * Delete processing callback.
+ */
+function bluetooth_callback_delete() {
+  $seid = arg(4);
+  if (is_numeric($seid)) {
+  	$res = bluetooth_delete($seid);
+    if ($res) {
+      drupal_set_message(t('E-mail gateway has been deleted.'));
+    }
+  }
+  drupal_goto('admin/settings/bluetooth');
+}
+
+/**
+ * Send an SMS message via e-mail gateway.
+ *
+ * @param string $phone
+ *   A phone number in the international format.
+ * @param string $message
+ *   An SMS message text to send.
+ * @param boolean $notify
+ *   Whether to output any messages.
+ */
+function bluetooth_send($phone, $message, $notify = FALSE) {
+  return TRUE;
+}
+
+
+function parse_host($found)
+{
+ $tokens=array();
+$tok = strtok($found, " \n\t");
+$tokens[0]=$tok;
+$count=0;
+while ($tok !== false) {
+        $tok = strtok(" \n\t");
+	$tokens[$count]=$tok;
+	$count++;
+}
+return $tokens;
+}
+
+/**/
+function bluetooth_active_hostdevs() {
+	$sql="SELECT * FROM {bluetooth}";
+	$result=db_query($sql);
+	$devcount=0;
+	$items = array();
+	while($v=db_fetch_object($result)){
+	$items[$v->hostid]=$v;
+	$devcount++;
+	}
+	$hosts=array();
+	for($count=0;$count<MAX_HOST_DEVICES;$count++) {
+	$gate = scan_host_devices($count,MAX_HOST_DEVICES);
+	if($gate)
+	$hosts[$count]=$gate;
+	else
+	   break;	
+	}
+	$total=array();
+	for($nindex=0;$nindex<$count;$nindex++) {
+	$nhost=parse_host($hosts[$count]);
+	$mark=0;
+	$new=$devcount;
+	for($dindex=0;$dindex<$devcount;$dindex++) {
+		if(strcasecmp($items[$dindex]->mac,$nhost[0]) == 0)
+	 	{
+	 $mark=1;
+	 $total[$dindex]=1;
+	$sql="UPDATE {bluetooth} SET deviceid=%d,devicename=%s,active=%d WHERE hostid=%d";
+        $res = db_query($sql, $nhost[2], $nhost[1],1,$dindex);
+         	}
+	 }
+	 	if($mark == 0)
+	 	{
+	 	$total[$new]=1;
+		$newenty=new stdClsss();
+		sprintf($newentry->mac,"%s",$nhost[0]);
+		sprintf($newentry->name,"Bluetooth Host %d",$nhost[2]);
+		sprintf($newentry->devicename,"%s",$nhost[1]);
+		$newentry->deviceid=$nhost[2];
+		$newentry->proto = BTPROTO_OBEX;
+		$newentry->mode  = BT_MULTICLIENT;
+		$newentry->adkey = AD_TYPE_TEXT;
+		$newentry->active = 1;
+		$items[$new]=$newentry;
+		$res=bluetooth_save($items);
+		$new++;
+	 	}
+	}		
+	for($count=0;$count<$new;$count++)
+	{
+	$sql="UPDATE {bluetooth} SET active=%d WHERE hostid=%d";
+        $res = db_query($sql, $total[$count],$count);
+	}
+	return $items;
+}
+
+/**
+ * Get a certain gateway for specified id.
+ * @param integer $seid
+ *   A gateway id which identifies a record.
+ * @param integer $field
+ *   Name of the table column to search for a record. Can be 'seid' or 'prefix'.
+ * @param integer $self_id
+ *   An ID of the record you want to exclude from search result. Useful when checking prefix originality.
+ * @return object
+ *   A gateway object with all information.
+ */
+function bluetooth_get_gateway($seid, $field = 'seid', $self_id = NULL) {
+	$sql = "SELECT * FROM {bluetooth} se WHERE se.$field = %d";
+	if (!empty($self_id)) {
+	  $sql .= " AND se.seid != $self_id";
+	}
+	$result = db_query($sql, $seid);
+
+	return ($item = db_fetch_object($result)) ? $item : NULL;
+}
+
+/**
+ * Delete a gateway from the database.
+ * @param integer $seid
+ *   A gateway id which identifies a record.
+ */
+function bluetooth_delete($seid) {
+	$sql = 'DELETE FROM {bluetooth} WHERE seid = %d';
+	$res = db_query($sql, $seid);
+
+	return $res;
+}
+
+/**
+ * Save a gateway to the database.
+ *
+ * @param object $gateway
+ *   E-mail gateway object contains all information.
+ */
+function bluetooth_save($bdevhost) {
+  if (empty($bdevhost->hostid)) {
+  	$sql = "INSERT INTO {bluetooth} VALUES (%d, %d, %d,'%s','%s','%s',%d,%d, %d)";
+  	$hostid = db_next_id('bluetooth_hostid');
+	  $res = db_query($sql, $hostid, $bdevhost->deviceid, $bdevhost->uuid,$bdevhost->mac,$bdevhost->name, $bdevhost->devicename,$bdevhost->proto,$bdevhost->mode,$bdevhost->adkey,$bdevhost->active);
+	  return (empty($res)) ? FALSE : $seid;
+  } else {
+    $sql = "UPDATE {bluetooth} SET deviceid = %d, uuid = %d,mac = '%s',name = '%s',devicename = '%s',proto  = %d,mode = %d,adkey = %d,active = %d WHERE hostid = %d";
+	  $res = db_query($sql, $bdevhost->deviceid, $bdevhost->mac, $bdevhost->name,$bdevhost->$devicename,$bdevhost->proto,$bdevhost->mode,$bdevhost->adkey,$bdevhost->active, $bdevhost->hostid);
+    return $res;
+  }
+}
+

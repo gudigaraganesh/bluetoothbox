@@ -1,0 +1,9 @@
+name = Bluetooth
+description = Send SMS messages via e-mail gateway.
+package = BLUETOOTH
+
+; Information added by drupal.org packaging script on 2007-06-19
+version = "5.x-1.x-dev"
+project = "bluetooth"
+datestamp = "1182212629"
+
